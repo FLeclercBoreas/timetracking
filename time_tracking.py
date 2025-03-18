@@ -72,6 +72,9 @@ class StopwatchApp:
         self.remove_time_button = tk.Button(time_frame, text="-", command=self.remove_time_from_selected)
         self.remove_time_button.pack(side=tk.LEFT)
 
+        self.save_simplified_button = tk.Button(self.root, text="Save Simplified CSV", command=self.save_simplified_csv)
+        self.save_simplified_button.pack()
+
     def refresh_ui(self):
         self.update_total_time()
         self.update_window_size()
@@ -255,13 +258,10 @@ class StopwatchApp:
                                 del last_entries[name]
                         elif action == "Rename":
                             #TODO revoir le rename
-                            old_name, new_name = name, comment.split("Renamed to ")[1]
-                            for entry_id, base_name in self.rename_map.items():
-                                if base_name == old_name:
-                                    self.rename_map[entry_id] = new_name
-                                    if old_name in last_entries:
-                                        last_entries[new_name] = last_entries.pop(old_name)
-                                    break
+                            new_name, old_name = name, comment.split("Renamed from ")[1]
+                            if old_name in last_entries:
+                                del last_entries[old_name]
+                                last_entries[new_name] = (elapsed_time, entry_date)
                         elif name == '':
                             print(f"Skipping row with missing name: {row}")
                         else:
@@ -277,6 +277,18 @@ class StopwatchApp:
             except Exception as e:
                 print(f"Failed to load CSV file: {e}")
                 traceback.print_exc()
+
+    def save_simplified_csv(self):
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        simplified_file_name = f"{timestamp} simplified - time tracking.csv"
+        simplified_file_path = os.path.join(self.working_folder, simplified_file_name)
+        with open(simplified_file_path, 'w', newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(["Timestamp", "Action", "Name", "Elapsed Time", "Entry Date", "Comment"])
+            for entry in self.entries.values():
+                writer.writerow([datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "Latest Status", entry.name_var.get(),
+                                 time.strftime("%H:%M:%S", time.gmtime(entry.elapsed_time)), entry.entry_date, ""])
+        print(f"Simplified CSV saved to {simplified_file_path}")
 
     def add_entry(self, name="", elapsed_time="00:00:00", entry_date=None):
         if not self.first_entry_date:
@@ -411,10 +423,8 @@ class StopwatchEntry:
         entry_id = self.id
         base_name = self.app.rename_map.get(entry_id, self.name_var.get())
         new_name = self.name_entry.get()
-        self.app.rename_map[entry_id] = new_name
-        self.app.log_to_csv("Rename", self, comment=f"Renamed to {new_name}")
+        self.app.log_to_csv("Rename", self, comment=f"Renamed from {base_name}")
         self.name_var.set(new_name)
-
 
     def update(self):
         if self.running:
