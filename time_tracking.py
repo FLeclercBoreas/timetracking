@@ -75,6 +75,28 @@ class StopwatchApp:
         self.save_simplified_button = tk.Button(self.root, text="Save Simplified CSV", command=self.save_simplified_csv)
         self.save_simplified_button.pack()
 
+        self.new_entry_checkbox_var = tk.BooleanVar()
+        self.new_entry_checkbox = tk.Checkbutton(self.root, text="Create new entry for every line", variable=self.new_entry_checkbox_var)
+        self.new_entry_checkbox.pack()
+
+        # Create a canvas and a scrollbar for the entries
+        self.canvas = tk.Canvas(self.root)
+        self.scrollbar = tk.Scrollbar(self.root, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(
+                scrollregion=self.canvas.bbox("all")
+            )
+        )
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
     def refresh_ui(self):
         self.update_total_time()
         self.update_window_size()
@@ -239,7 +261,9 @@ class StopwatchApp:
                 return
 
             print(f"Loading CSV file: {file_path}")
-            self.clear_entries()  # Clear current entries
+            if not self.new_entry_checkbox_var.get():
+                self.clear_entries()  # Clear current entries
+
             existing_entries = {(entry.name_var.get(), entry.entry_date) for entry in self.entries.values()}
             try:
                 #Set cursor to the beginning of the file
@@ -270,7 +294,7 @@ class StopwatchApp:
                         print(f"Skipping row with invalid data formatting: {row}")
 
                 for name, (elapsed_time, entry_date) in last_entries.items():
-                    if (name, entry_date) not in existing_entries:
+                    if ((name, entry_date) not in existing_entries) or self.new_entry_checkbox_var.get():
                         self.add_entry(name, elapsed_time, entry_date)
                 self.refresh_ui()
                 print("CSV file loaded and UI updated.")
@@ -295,7 +319,7 @@ class StopwatchApp:
             self.first_entry_date = datetime.today().strftime('%Y-%m-%d')
         entry_id = self.entry_counter
         self.entry_counter += 1
-        entry = StopwatchEntry(self.root, self, entry_id)
+        entry = StopwatchEntry(self.scrollable_frame, self, entry_id)
         entry.set_values(name, elapsed_time, entry_date or self.first_entry_date)
         self.entries[entry_id] = entry  # Store the entry by its ID
         self.rename_map[entry_id] = name  # Add the entry ID to the rename_map
